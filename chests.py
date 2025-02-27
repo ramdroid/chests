@@ -16,6 +16,12 @@ from PIL import ImageGrab
 import pytesseract
 pytesseract.pytesseract.tesseract_cmd = r'C:\\Program Files\\Tesseract-OCR\\tesseract.exe'
 
+# pip install easyocr
+import easyocr
+
+# pip install numpy
+import numpy
+
 # pip install pyautogui
 import pyautogui
 
@@ -135,10 +141,12 @@ class OCRWindow(QMainWindow):
     OCR_BOX = (785, 400, 400, 380)
     BUTTON = (1340, 460, 16, 16)
 
-    LANG = 'eng' #'deu'
+    OCR_VERSION = 'easyocr'
 
     def __init__(self):
         super().__init__()
+
+        self.ocr = easyocr.Reader(['en', 'de'])
 
         self.counter = ChestCounter()
 
@@ -167,8 +175,6 @@ class OCRWindow(QMainWindow):
         qp.end()
 
     def start(self):
-        self.setFocus()
-
         total_chests = []
         while (True):    
             chests = self.grab()
@@ -182,10 +188,19 @@ class OCRWindow(QMainWindow):
 
     def grab(self):
         screenshot = ImageGrab.grab(bbox=(self.OCR_BOX[0], self.OCR_BOX[1], self.OCR_BOX[0] + self.OCR_BOX[2], self.OCR_BOX[1] + self.OCR_BOX[3]))
-        try:
-            text_lines = pytesseract.image_to_string(screenshot, lang=self.LANG).split("\n")
-        except Exception as e:
-            text_lines = []
+
+        if self.OCR_VERSION == 'easyocr':
+            try:
+                image = numpy.array(screenshot)
+                text_lines = self.ocr.readtext(image, detail=0)
+            except Exception as e:
+                text_lines = []
+        else:
+            try:
+                text_lines = pytesseract.image_to_string(screenshot).split("\n")
+            except Exception as e:
+                text_lines = []
+
         screenshot.close()
 
         try:
