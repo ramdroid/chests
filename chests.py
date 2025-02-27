@@ -3,8 +3,8 @@ import time
 
 # pip install pyqt5
 from PyQt5.QtGui import QPainter, QPen
-from PyQt5.QtWidgets import QMainWindow, QApplication, QPushButton
-from PyQt5.QtCore import Qt, pyqtSlot
+from PyQt5.QtWidgets import QMainWindow, QApplication, QPushButton, QWidget
+from PyQt5.QtCore import Qt
 
 # pip install screeninfo
 from screeninfo import get_monitors
@@ -40,72 +40,7 @@ class ChestException(Exception):
     pass
 
 
-class OCRWindow(QMainWindow):
-    
-    BOX = (785, 400, 400, 380)
-    BUTTON = (1340, 460, 16, 16)
-
-    def __init__(self):
-        super().__init__()
-
-        for m in get_monitors():
-            print(str(m))
-            if m.is_primary:
-                self.setGeometry(m.x, m.y, m.width, m.height)
-
-        self.setAttribute(Qt.WA_TranslucentBackground, True)
-        self.setWindowFlags(Qt.FramelessWindowHint)
-
-        button = QPushButton('Start chest tracker', self)
-        button.move(1300, 900)
-        button.clicked.connect(self.on_start)
-
-        self.show()
-
-    @pyqtSlot()
-    def on_start(self):
-        total_chests = []
-        while (True):    
-            chests = self.grab()
-            if len(chests) > 0:
-                total_chests.extend(chests)
-                self.next()
-            else:
-                break
-
-            #break
-
-        export = Export()
-        export.csv(total_chests)
-
-    def paintEvent(self, e):
-        qp = QPainter()
-        qp.begin(self)
-        pen = QPen(Qt.red, 2, Qt.SolidLine)
-        qp.setPen(pen)
-        qp.drawRect(self.BOX[0], self.BOX[1], self.BOX[2], self.BOX[3])
-        qp.drawRect(self.BUTTON[0], self.BUTTON[1], self.BUTTON[2], self.BUTTON[3])
-        qp.end()
-
-    def grab(self):
-        screenshot = ImageGrab.grab(bbox=(self.BOX[0], self.BOX[1], self.BOX[0] + self.BOX[2], self.BOX[1] + self.BOX[3]))
-        try:
-            text_lines = pytesseract.image_to_string(screenshot).split("\n")
-        except Exception:
-            text_lines = []
-        screenshot.close()
-
-        try:
-            chests = self.parse(text_lines)
-        except ChestException:
-            chests = []
-
-        return chests
-    
-    def next(self):
-        for i in range(4):
-            pyautogui.click(self.BUTTON[0] + (self.BUTTON[2] / 2), self.BUTTON[1] + (self.BUTTON[3] / 2))
-            time.sleep(0.5)
+class ChestCounter:
 
     def parse(self, text_lines):
         chests = []
@@ -113,6 +48,10 @@ class OCRWindow(QMainWindow):
         for line in text_lines:
             if len(line) == 0:
                 continue
+
+            if 'PRBS' in line:
+                pass # what's going on with this one?
+
             if len(chest.name) == 0:
                 chest.name = line
             elif len(chest.player) == 0:
@@ -120,7 +59,7 @@ class OCRWindow(QMainWindow):
                     raise ChestException()
                 s = line.split(' ')
                 s.pop(0)
-                chest.player = ' '.join(s)
+                chest.player = ' '.join(s).replace('.', '') # faulty dots are sometimes added by OCR 
             elif len(chest.source) == 0:
                 if not line.startswith('Source'):
                     raise ChestException()
@@ -132,11 +71,8 @@ class OCRWindow(QMainWindow):
                 print(chest)
                 chest = Chest()
         return chests
-
-
-class Export:
-
-    def csv(self, chests):
+    
+    def export(self, chests):
         SEP = ';'
         EOL = '\n'
 
@@ -144,15 +80,24 @@ class Export:
         self.sources = ['']
         self.player_chests = {}
         for chest in chests:
-            if not chest.player in self.players:
-                self.players.append(chest.player)
+            # sometimes OCR doesn't recognize lettering, so add some magic here
+            real_player = chest.player
+            has_player = False
+            for p in self.players:
+                if p.upper() == chest.player.upper():
+                    real_player = p
+                    has_player = True
+
+            if not has_player:
+                self.players.append(real_player)
 
             if not chest.source in self.sources:
                 self.sources.append(chest.source)
             
-            if not chest.player in self.player_chests:
-                self.player_chests[chest.player] = []
-            self.player_chests[chest.player].append(chest)            
+            if not real_player in self.player_chests:
+                self.player_chests[real_player] = []
+            
+            self.player_chests[real_player].append(chest)            
 
         with open("chests.csv", "w") as f:
             header = SEP.join(self.sources) + EOL
@@ -169,11 +114,95 @@ class Export:
                             counter += 1
                     sources.append(str(counter))
                 line = SEP.join(sources) + EOL
-                f.write(line)
+                f.write(line)    
+
+
+class Dialog(QWidget):
+
+    def __init__(self, ocr):
+        super().__init__()
+        self.setGeometry(1500, 400, 300, 500)
+        self.setWindowTitle("Chest counter")
+
+        button = QPushButton('Start', self)
+        button.setStyleSheet("background-color: red; color: white; font-weight: bold;")
+        button.setGeometry(80, 450, 150, 30)
+        button.clicked.connect(ocr.start)
+
+
+class OCRWindow(QMainWindow):
+    
+    OCR_BOX = (785, 400, 400, 380)
+    BUTTON = (1340, 460, 16, 16)
+
+    LANG = 'eng' #'deu'
+
+    def __init__(self):
+        super().__init__()
+
+        self.counter = ChestCounter()
+
+        self.dialog = Dialog(self)
+        self.dialog.show()
+
+        for m in get_monitors():
+            print(str(m))
+            if m.is_primary:
+                self.setGeometry(m.x, m.y, m.width, m.height)
+
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.setWindowFlags(Qt.FramelessWindowHint)
+
+    def closeEvent(self, event):
+        self.dialog.close()
+        event.accept()
+
+    def paintEvent(self, e):
+        qp = QPainter()
+        qp.begin(self)
+        pen = QPen(Qt.red, 2, Qt.SolidLine)
+        qp.setPen(pen)
+        qp.drawRect(self.OCR_BOX[0], self.OCR_BOX[1], self.OCR_BOX[2], self.OCR_BOX[3])
+        qp.drawRect(self.BUTTON[0], self.BUTTON[1], self.BUTTON[2], self.BUTTON[3])
+        qp.end()
+
+    def start(self):
+        self.setFocus()
+
+        total_chests = []
+        while (True):    
+            chests = self.grab()
+            if len(chests) > 0:
+                total_chests.extend(chests)
+                self.next()
+            else:
+                break
+
+        self.counter.export(total_chests)
+
+    def grab(self):
+        screenshot = ImageGrab.grab(bbox=(self.OCR_BOX[0], self.OCR_BOX[1], self.OCR_BOX[0] + self.OCR_BOX[2], self.OCR_BOX[1] + self.OCR_BOX[3]))
+        try:
+            text_lines = pytesseract.image_to_string(screenshot, lang=self.LANG).split("\n")
+        except Exception as e:
+            text_lines = []
+        screenshot.close()
+
+        try:
+            chests = self.counter.parse(text_lines)
+        except ChestException:
+            chests = []
+
+        return chests
+    
+    def next(self):
+        for i in range(4):
+            pyautogui.click(self.BUTTON[0] + (self.BUTTON[2] / 2), self.BUTTON[1] + (self.BUTTON[3] / 2))
+            time.sleep(0.5)
 
 
 if __name__ == '__main__':
-
     app = QApplication(sys.argv)
-    ocr = OCRWindow()
+    window = OCRWindow()
+    window.show()
     sys.exit(app.exec_())
