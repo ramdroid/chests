@@ -58,24 +58,22 @@ class ChestCounter:
             if 'PRBS' in line:
                 pass # what's going on with this one?
 
-            if len(chest.name) == 0:
-                chest.name = line
-            elif len(chest.player) == 0:
-                if not line.startswith('From'):
-                    raise ChestException()
+            if len(chest.player) == 0 and  line.startswith('From'):
                 s = line.split(' ')
                 s.pop(0)
                 chest.player = ' '.join(s).replace('.', '') # faulty dots are sometimes added by OCR 
-            elif len(chest.source) == 0:
-                if not line.startswith('Source'):
-                    raise ChestException()
+            elif len(chest.source) == 0 and line.startswith('Source'):
                 s = line.split(' ')
                 s.pop(0)
                 chest.source = ' '.join(s)
+            else:
+                chest.name = ' '.join([chest.name, line]).strip()
+
             if chest.valid():
                 chests.append(chest)
                 print(chest)
                 chest = Chest()
+
         return chests
     
     def export(self, chests):
@@ -127,13 +125,19 @@ class Dialog(QWidget):
 
     def __init__(self, ocr):
         super().__init__()
+        self.ocr = ocr
+
         self.setGeometry(1500, 400, 300, 500)
         self.setWindowTitle("Chest counter")
 
         button = QPushButton('Start', self)
         button.setStyleSheet("background-color: red; color: white; font-weight: bold;")
         button.setGeometry(80, 450, 150, 30)
-        button.clicked.connect(ocr.start)
+        button.clicked.connect(self.ocr.start)
+
+    def closeEvent(self, event):
+        self.ocr.close()
+        event.accept()
 
 
 class OCRWindow(QMainWindow):
@@ -161,10 +165,6 @@ class OCRWindow(QMainWindow):
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setWindowFlags(Qt.FramelessWindowHint)
 
-    def closeEvent(self, event):
-        self.dialog.close()
-        event.accept()
-
     def paintEvent(self, e):
         qp = QPainter()
         qp.begin(self)
@@ -183,6 +183,10 @@ class OCRWindow(QMainWindow):
                 self.next()
             else:
                 break
+
+        print(f'Found chests: {len(total_chests)}')
+
+        self.dialog.activateWindow()
 
         self.counter.export(total_chests)
 
