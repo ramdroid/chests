@@ -3,7 +3,7 @@ import time
 
 # pip install pyqt5
 from PyQt5.QtGui import QPainter, QPen
-from PyQt5.QtWidgets import QMainWindow, QApplication, QPushButton, QWidget
+from PyQt5.QtWidgets import QMainWindow, QApplication, QPushButton, QWidget, QVBoxLayout, QListWidget, QListWidgetItem
 from PyQt5.QtCore import Qt
 
 # pip install screeninfo
@@ -13,8 +13,11 @@ from screeninfo import get_monitors
 from PIL import ImageGrab
 
 # pip install pytesseract
-import pytesseract
-pytesseract.pytesseract.tesseract_cmd = r'C:\\Program Files\\Tesseract-OCR\\tesseract.exe'
+try:
+    import pytesseract
+    pytesseract.pytesseract.tesseract_cmd = r'C:\\Program Files\\Tesseract-OCR\\tesseract.exe'
+except ModuleNotFoundError:
+    pass
 
 # pip install easyocr
 import easyocr
@@ -48,6 +51,9 @@ class ChestException(Exception):
 
 class ChestCounter:
 
+    def __init__(self, log_callback):
+        self.log_callback = log_callback
+
     def parse(self, text_lines):
         chests = []
         chest = Chest()
@@ -71,7 +77,7 @@ class ChestCounter:
 
             if chest.valid():
                 chests.append(chest)
-                print(chest)
+                self.log_callback(str(chest))
                 chest = Chest()
 
         return chests
@@ -130,10 +136,20 @@ class Dialog(QWidget):
         self.setGeometry(1500, 400, 300, 500)
         self.setWindowTitle("Chest counter")
 
+        self.listWidget = QListWidget()
+        
         button = QPushButton('Start', self)
         button.setStyleSheet("background-color: red; color: white; font-weight: bold;")
-        button.setGeometry(80, 450, 150, 30)
+        #button.setGeometry(80, 450, 150, 30)
         button.clicked.connect(self.ocr.start)
+
+        layout = QVBoxLayout()
+        layout.addWidget(self.listWidget)
+        layout.addWidget(button)
+        self.setLayout(layout)
+
+    def log_entry(self, entry):
+        self.listWidget.addItem(QListWidgetItem(entry))
 
     def closeEvent(self, event):
         self.ocr.close()
@@ -152,17 +168,19 @@ class OCRWindow(QMainWindow):
 
         self.ocr = easyocr.Reader(['en', 'de'])
 
-        self.counter = ChestCounter()
-
         self.dialog = Dialog(self)
         self.dialog.show()
+
+        self.counter = ChestCounter(self.dialog.log_entry)
+        self.dialog.log_entry("Ready")
 
         for m in get_monitors():
             print(str(m))
             if m.is_primary:
                 self.setGeometry(m.x, m.y, m.width, m.height)
 
-        self.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.setWindowFlags(Qt.FramelessWindowHint)
 
     def paintEvent(self, e):
@@ -184,7 +202,7 @@ class OCRWindow(QMainWindow):
             else:
                 break
 
-        print(f'Found chests: {len(total_chests)}')
+        self.dialog.log_entry(f'Found chests: {len(total_chests)}')
 
         self.dialog.activateWindow()
 
