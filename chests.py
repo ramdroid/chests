@@ -2,9 +2,9 @@ import sys
 import time
 
 # pip install pyqt5
-from PyQt5.QtGui import QPainter, QPen
-from PyQt5.QtWidgets import QMainWindow, QApplication, QPushButton, QWidget, QVBoxLayout, QListWidget, QListWidgetItem
-from PyQt5.QtCore import Qt
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
+from PyQt5.QtCore import *
 
 # pip install screeninfo
 from screeninfo import get_monitors
@@ -159,25 +159,142 @@ class ChestCounter:
                 f.write(line)    
 
 
+class OCRControl(QWidget):
+
+    STEP = 10
+
+    def __init__(self, ocr, type):
+        super().__init__()
+        self.ocr = ocr
+        self.type = type
+
+        up = QPushButton("U")
+        up.clicked.connect(self.moveUp)
+        down = QPushButton("D")
+        down.clicked.connect(self.moveDown)
+        left = QPushButton("L")
+        left.clicked.connect(self.moveLeft)
+        right = QPushButton("R")
+        right.clicked.connect(self.moveRight)
+
+        if type == 'ocr':
+            widthMinus = QPushButton("W -")
+            widthMinus.clicked.connect(self.moveWidthMinus)
+            widthPlus = QPushButton("W +")
+            widthPlus.clicked.connect(self.moveWidthPlus)
+            heightMinus = QPushButton("H -")
+            heightMinus.clicked.connect(self.moveHeightMinus)
+            heightPlus = QPushButton("H +")
+            heightPlus.clicked.connect(self.moveHeightPlus)
+
+        layout = QGridLayout()
+        layout.addWidget(up, 0, 1)
+        layout.addWidget(left, 1, 0)
+        layout.addWidget(right, 1, 2)
+        layout.addWidget(down, 2, 1)
+
+        if type == 'ocr':
+            layout.addWidget(widthPlus, 3, 0)
+            layout.addWidget(widthMinus, 4, 0)
+            layout.addWidget(heightPlus, 3, 2)
+            layout.addWidget(heightMinus, 4, 2)
+
+        self.setLayout(layout)
+
+    def moveUp(self):
+        self.ocr.move(self.type, 0, -1 * self.STEP)
+
+    def moveDown(self):
+        self.ocr.move(self.type, 0, -1 * self.STEP)
+
+    def moveLeft(self):
+        self.ocr.move(self.type, -1 * self.STEP, 0)
+
+    def moveRight(self):
+        self.ocr.move(self.type, 1 * self.STEP, 0)
+
+    def moveWidthMinus(self):
+        self.ocr.moveWidth(self.type, -1 * self.STEP)
+
+    def moveWidthPlus(self):
+        self.ocr.moveWidth(self.type, 1 * self.STEP)
+
+    def moveHeightMinus(self):
+        self.ocr.moveHeight(self.type, -1 * self.STEP)
+
+    def moveHeightPlus(self):
+        self.ocr.moveHeight(self.type, 1 * self.STEP)
+
+
 class Dialog(QWidget):
 
     def __init__(self, ocr):
         super().__init__()
         self.ocr = ocr
 
-        self.setGeometry(1500, 400, 300, 500)
+        self.settings = QSettings('ramdroid', 'chests')
+        if self.settings.contains("geometry"):
+            self.restoreGeometry(self.settings.value("geometry"))
+        else:
+            self.setGeometry(1500, 400, 300, 500)
+
+        if self.settings.contains("ocr/box"):
+            self.ocr.OCR_BOX = self.settings.value("ocr/box")
+
         self.setWindowTitle("Chest counter")
 
         self.listWidget = QListWidget()
+
+        self.ocrControl = OCRControl(self.ocr, 'ocr')
+        self.buttonControl = OCRControl(self.ocr, 'button')
+
+        checkBoxOCR = QCheckBox(self)
+        checkBoxOCR.setText('OCR')
+        if self.settings.contains("ocr/visible"):
+            ocr_checked = self.settings.value("ocr/visible") 
+            checkBoxOCR.setChecked(ocr_checked)
+            self.toggleOCR(ocr_checked)
+        else:
+            self.toggleOCR(False)
+        checkBoxOCR.stateChanged.connect(self.toggleOCR)
         
-        button = QPushButton('Start', self)
-        button.setStyleSheet("background-color: red; color: white; font-weight: bold;")
-        button.clicked.connect(self.ocr.start)
+        checkBoxButton = QCheckBox(self)
+        checkBoxButton.setText('Button')
+        if self.settings.contains("button/visible"):
+            button_checked = self.settings.value("button/visible") 
+            checkBoxButton.setChecked(button_checked)
+            self.toggleButton(button_checked)
+        else:
+            self.toggleButton(False)
+        checkBoxButton.stateChanged.connect(self.toggleButton)
+
+        panelLayout = QHBoxLayout()
+        panelLayout.addWidget(checkBoxOCR)
+        panelLayout.addWidget(checkBoxButton)
+        checkBoxPanel = QWidget()
+        checkBoxPanel.setLayout(panelLayout)
+        
+        buttonStart = QPushButton('Start', self)
+        buttonStart.setStyleSheet("background-color: red; color: white; font-weight: bold;")
+        buttonStart.clicked.connect(self.ocr.start)
 
         layout = QVBoxLayout()
         layout.addWidget(self.listWidget)
-        layout.addWidget(button)
+        layout.addWidget(self.ocrControl)
+        layout.addWidget(self.buttonControl)
+        layout.addWidget(checkBoxPanel)
+        layout.addWidget(buttonStart)
         self.setLayout(layout)
+
+    def toggleOCR(self, checked):
+        self.ocrControl.setVisible(checked)
+        self.buttonControl.setVisible(False)
+        self.ocr.toggleOCR(checked)
+
+    def toggleButton(self, checked):
+        self.ocrControl.setVisible(False)
+        self.buttonControl.setVisible(checked)
+        self.ocr.toggleOCR(checked)
 
     def log_entry(self, entry):
         item = QListWidgetItem(entry)
@@ -185,8 +302,20 @@ class Dialog(QWidget):
         self.listWidget.scrollToItem(item)
 
     def closeEvent(self, event):
+        self.save_settings()
         self.ocr.close()
         event.accept()
+
+    def save_settings(self):
+        self.settings.setValue("geometry", self.saveGeometry())
+        self.settings.beginGroup("ocr")
+        self.settings.setValue("visible", self.ocr.ocr_visible)
+        self.settings.setValue("box", self.ocr.OCR_BOX)
+        self.settings.endGroup()
+        self.settings.beginGroup("button")
+        self.settings.setValue("visible", self.ocr.button_visible)
+        self.settings.setValue("box", self.ocr.BUTTON)
+        self.settings.endGroup()
 
 
 class OCRWindow(QMainWindow):
@@ -198,6 +327,8 @@ class OCRWindow(QMainWindow):
         super().__init__()
 
         self.ocr = easyocr.Reader(['en', 'de'])
+        self.ocr_visible = False
+        self.button_visible = False
 
         self.dialog = Dialog(self)
         self.dialog.show()
@@ -214,13 +345,36 @@ class OCRWindow(QMainWindow):
         self.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.setWindowFlags(Qt.FramelessWindowHint)
 
+    def move(self, type, x, y):
+        if type == 'ocr':
+            self.OCR_BOX = (self.OCR_BOX[0] + x, self.OCR_BOX[1] + y, self.OCR_BOX[2] + x, self.OCR_BOX[3] + y)
+        else:
+            self.BUTTON = (self.BUTTON[0] + x, self.BUTTON[1] + y, self.BUTTON[2], self.BUTTON[3])
+        self.update()
+
+    def moveWidth(self, type, width):
+        self.OCR_BOX = (self.OCR_BOX[0], self.OCR_BOX[1], self.OCR_BOX[2] + width, self.OCR_BOX[3])
+        self.update()
+
+    def moveHeight(self, type, height):
+        self.OCR_BOX = (self.OCR_BOX[0], self.OCR_BOX[1], self.OCR_BOX[2], self.OCR_BOX[3] + height)
+        self.update()
+
+    def toggleOCR(self, checked):
+        self.ocr_visible = checked
+        self.update()
+
+    def toggleButton(self, checked):
+        self.ocr_visible = checked
+        self.update()
+
     def paintEvent(self, e):
         qp = QPainter()
         qp.begin(self)
-        pen = QPen(Qt.red, 2, Qt.SolidLine)
-        qp.setPen(pen)
-        qp.drawRect(self.OCR_BOX[0], self.OCR_BOX[1], self.OCR_BOX[2], self.OCR_BOX[3])
-        qp.drawRect(self.BUTTON[0], self.BUTTON[1], self.BUTTON[2], self.BUTTON[3])
+        if self.ocr_visible or self.button_visible:
+            qp.setPen(QPen(Qt.red, 2, Qt.SolidLine))
+            qp.drawRect(self.OCR_BOX[0], self.OCR_BOX[1], self.OCR_BOX[2], self.OCR_BOX[3])
+            qp.drawRect(self.BUTTON[0], self.BUTTON[1], self.BUTTON[2], self.BUTTON[3])
         qp.end()
 
     def start(self):
