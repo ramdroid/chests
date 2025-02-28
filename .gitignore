@@ -1,3 +1,6 @@
 *.csv
 *.csv#
 *.pyc
+*.spec
+build
+dist
