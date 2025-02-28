@@ -12,13 +12,6 @@ from screeninfo import get_monitors
 # pip install pillow
 from PIL import ImageGrab
 
-# pip install pytesseract
-try:
-    import pytesseract
-    pytesseract.pytesseract.tesseract_cmd = r'C:\\Program Files\\Tesseract-OCR\\tesseract.exe'
-except ModuleNotFoundError:
-    pass
-
 # pip install easyocr
 import easyocr
 
@@ -99,20 +92,23 @@ class ChestCounter:
     
     def load(self):
         chests = []
-        with open("chests.csv", "r", encoding='utf-8') as f:
-            headers = []
-            for line in f:
-                columns = line.replace("\n", "").split(SEP)
-                if len(columns[0]) == 0:
-                    headers = columns
-                else:
-                    for i in range(1, len(columns)):
-                        chest = Chest()
-                        chest.player = columns[0]
-                        chest.source = chest.name = headers[i]
-                        chest.count = int(columns[i])
-                        if chest.count > 0:
-                            chests.append(chest)
+        try:
+            with open("chests.csv", "r", encoding='utf-8') as f:
+                headers = []
+                for line in f:
+                    columns = line.replace("\n", "").split(SEP)
+                    if len(columns[0]) == 0:
+                        headers = columns
+                    else:
+                        for i in range(1, len(columns)):
+                            chest = Chest()
+                            chest.player = columns[0]
+                            chest.source = chest.name = headers[i]
+                            chest.count = int(columns[i])
+                            if chest.count > 0:
+                                chests.append(chest)
+        except Exception:
+            pass
 
         if len(chests) > 0:
             self.log_callback(f"Ready. Loaded {len(chests)} chests")
@@ -198,8 +194,6 @@ class OCRWindow(QMainWindow):
     OCR_BOX = (785, 400, 400, 380)
     BUTTON = (1340, 460, 16, 16)
 
-    OCR_VERSION = 'easyocr'
-
     def __init__(self):
         super().__init__()
 
@@ -247,17 +241,11 @@ class OCRWindow(QMainWindow):
     def grab(self):
         screenshot = ImageGrab.grab(bbox=(self.OCR_BOX[0], self.OCR_BOX[1], self.OCR_BOX[0] + self.OCR_BOX[2], self.OCR_BOX[1] + self.OCR_BOX[3]))
 
-        if self.OCR_VERSION == 'easyocr':
-            try:
-                image = numpy.array(screenshot)
-                text_lines = self.ocr.readtext(image, detail=0)
-            except Exception as e:
-                text_lines = []
-        else:
-            try:
-                text_lines = pytesseract.image_to_string(screenshot).split("\n")
-            except Exception as e:
-                text_lines = []
+        try:
+            image = numpy.array(screenshot)
+            text_lines = self.ocr.readtext(image, detail=0)
+        except Exception as e:
+            text_lines = []
 
         screenshot.close()
 
