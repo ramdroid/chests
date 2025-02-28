@@ -57,6 +57,8 @@ class ChestCounter:
     def parse(self, text_lines):
         chests = []
         chest = Chest()
+        has_player = False
+        has_source = False
         for line in text_lines:
             if len(line) == 0:
                 continue
@@ -64,14 +66,22 @@ class ChestCounter:
             if 'PRBS' in line:
                 pass # what's going on with this one?
 
-            if len(chest.player) == 0 and  line.startswith('From'):
-                s = line.split(' ')
-                s.pop(0)
-                chest.player = ' '.join(s).replace('.', '') # faulty dots are sometimes added by OCR 
-            elif len(chest.source) == 0 and line.startswith('Source'):
-                s = line.split(' ')
-                s.pop(0)
-                chest.source = ' '.join(s)
+            if has_player or (len(chest.player) == 0 and line.startswith('From')):
+                if has_player:
+                    chest.player = line
+                else:
+                    s = line.split(' ')
+                    s.pop(0)
+                    chest.player = ' '.join(s).replace('.', '') # faulty dots are sometimes added by OCR
+                has_player = len(chest.player) == 0 # split over two lines
+            elif has_source or (len(chest.source) == 0 and line.startswith('Source')):
+                if has_source:
+                    chest.source = line
+                else:
+                    s = line.split(' ')
+                    s.pop(0)
+                    chest.source = ' '.join(s)
+                has_source = len(chest.source) == 0 # split over two lines
             else:
                 chest.name = ' '.join([chest.name, line]).strip()
 
@@ -109,7 +119,7 @@ class ChestCounter:
             
             self.player_chests[real_player].append(chest)            
 
-        with open("chests.csv", "w") as f:
+        with open("chests.csv", "w", encoding='utf-8') as f:
             header = SEP.join(self.sources) + EOL
             f.write(header)
 
@@ -140,7 +150,6 @@ class Dialog(QWidget):
         
         button = QPushButton('Start', self)
         button.setStyleSheet("background-color: red; color: white; font-weight: bold;")
-        #button.setGeometry(80, 450, 150, 30)
         button.clicked.connect(self.ocr.start)
 
         layout = QVBoxLayout()
