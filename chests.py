@@ -29,11 +29,16 @@ import numpy
 import pyautogui
 
 
+SEP = ';'
+EOL = '\n'
+
+
 class Chest:
 
     player = ''
     source = ''
     name = ''
+    count = 1
     
     def __str__(self):
         return f'{self.player}: {self.source}'
@@ -92,10 +97,31 @@ class ChestCounter:
 
         return chests
     
-    def export(self, chests):
-        SEP = ';'
-        EOL = '\n'
+    def load(self):
+        chests = []
+        with open("chests.csv", "r", encoding='utf-8') as f:
+            headers = []
+            for line in f:
+                columns = line.replace("\n", "").split(SEP)
+                if len(columns[0]) == 0:
+                    headers = columns
+                else:
+                    for i in range(1, len(columns)):
+                        chest = Chest()
+                        chest.player = columns[0]
+                        chest.source = chest.name = headers[i]
+                        chest.count = int(columns[i])
+                        if chest.count > 0:
+                            chests.append(chest)
 
+        if len(chests) > 0:
+            self.log_callback(f"Ready. Loaded {len(chests)} chests")
+        else:
+            self.log_callback("Ready.")
+
+        return chests
+    
+    def save(self, chests):
         self.players = []
         self.sources = ['']
         self.player_chests = {}
@@ -158,7 +184,9 @@ class Dialog(QWidget):
         self.setLayout(layout)
 
     def log_entry(self, entry):
-        self.listWidget.addItem(QListWidgetItem(entry))
+        item = QListWidgetItem(entry)
+        self.listWidget.addItem(item)
+        self.listWidget.scrollToItem(item)
 
     def closeEvent(self, event):
         self.ocr.close()
@@ -181,7 +209,7 @@ class OCRWindow(QMainWindow):
         self.dialog.show()
 
         self.counter = ChestCounter(self.dialog.log_entry)
-        self.dialog.log_entry("Ready")
+        self.total_chests = self.counter.load()
 
         for m in get_monitors():
             print(str(m))
@@ -202,20 +230,19 @@ class OCRWindow(QMainWindow):
         qp.end()
 
     def start(self):
-        total_chests = []
         while (True):    
             chests = self.grab()
             if len(chests) > 0:
-                total_chests.extend(chests)
+                self.total_chests.extend(chests)
                 self.next()
             else:
                 break
 
-        self.dialog.log_entry(f'Found chests: {len(total_chests)}')
+        self.dialog.log_entry(f'Total chests: {len(self.total_chests)}')
 
         self.dialog.activateWindow()
 
-        self.counter.export(total_chests)
+        self.counter.save(self.total_chests)
 
     def grab(self):
         screenshot = ImageGrab.grab(bbox=(self.OCR_BOX[0], self.OCR_BOX[1], self.OCR_BOX[0] + self.OCR_BOX[2], self.OCR_BOX[1] + self.OCR_BOX[3]))
