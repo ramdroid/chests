@@ -202,7 +202,7 @@ class OCRControl(QWidget):
         self.setLayout(layout)
 
     def moveUp(self):
-        self.ocr.move(self.type, 0, -1 * self.STEP)
+        self.ocr.move(self.type, 0, 1 * self.STEP)
 
     def moveDown(self):
         self.ocr.move(self.type, 0, -1 * self.STEP)
