@@ -163,19 +163,22 @@ class OCRControl(QWidget):
 
     STEP = 10
 
+    ICON_LEFT = b"PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgZmlsbC1ydWxlPSJldmVub2RkIiBjbGlwLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0xMiAwYzYuNjIzIDAgMTIgNS4zNzcgMTIgMTJzLTUuMzc3IDEyLTEyIDEyLTEyLTUuMzc3LTEyLTEyIDUuMzc3LTEyIDEyLTEyem0wIDFjNi4wNzEgMCAxMSA0LjkyOSAxMSAxMXMtNC45MjkgMTEtMTEgMTEtMTEtNC45MjktMTEtMTEgNC45MjktMTEgMTEtMTF6bTMgNS43NTNsLTYuNDQgNS4yNDcgNi40NCA1LjI2My0uNjc4LjczNy03LjMyMi02IDcuMzM1LTYgLjY2NS43NTN6Ii8+PC9zdmc+"
+    ICON_RIGHT = b"PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgZmlsbC1ydWxlPSJldmVub2RkIiBjbGlwLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0xMiAwYzYuNjIzIDAgMTIgNS4zNzcgMTIgMTJzLTUuMzc3IDEyLTEyIDEyLTEyLTUuMzc3LTEyLTEyIDUuMzc3LTEyIDEyLTEyem0wIDFjNi4wNzEgMCAxMSA0LjkyOSAxMSAxMXMtNC45MjkgMTEtMTEgMTEtMTEtNC45MjktMTEtMTEgNC45MjktMTEgMTEtMTF6bS0zIDUuNzUzbDYuNDQgNS4yNDctNi40NCA1LjI2My42NzguNzM3IDcuMzIyLTYtNy4zMzUtNi0uNjY1Ljc1M3oiLz48L3N2Zz4="
+    ICON_UP = b"PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgZmlsbC1ydWxlPSJldmVub2RkIiBjbGlwLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0xMiAwYzYuNjIzIDAgMTIgNS4zNzcgMTIgMTJzLTUuMzc3IDEyLTEyIDEyLTEyLTUuMzc3LTEyLTEyIDUuMzc3LTEyIDEyLTEyem0wIDFjNi4wNzEgMCAxMSA0LjkyOSAxMSAxMXMtNC45MjkgMTEtMTEgMTEtMTEtNC45MjktMTEtMTEgNC45MjktMTEgMTEtMTF6bTUuMjQ3IDE1bC01LjI0Ny02LjQ0LTUuMjYzIDYuNDQtLjczNy0uNjc4IDYtNy4zMjIgNiA3LjMzNS0uNzUzLjY2NXoiLz48L3N2Zz4="
+    ICON_DOWN = b"PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgZmlsbC1ydWxlPSJldmVub2RkIiBjbGlwLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0xMiAwYzYuNjIzIDAgMTIgNS4zNzcgMTIgMTJzLTUuMzc3IDEyLTEyIDEyLTEyLTUuMzc3LTEyLTEyIDUuMzc3LTEyIDEyLTEyem0wIDFjNi4wNzEgMCAxMSA0LjkyOSAxMSAxMXMtNC45MjkgMTEtMTEgMTEtMTEtNC45MjktMTEtMTEgNC45MjktMTEgMTEtMTF6bTUuMjQ3IDhsLTUuMjQ3IDYuNDQtNS4yNjMtNi40NC0uNzM3LjY3OCA2IDcuMzIyIDYtNy4zMzUtLjc1My0uNjY1eiIvPjwvc3ZnPg=="
+
     def __init__(self, ocr, type):
         super().__init__()
         self.ocr = ocr
         self.type = type
 
-        up = QPushButton("U")
-        up.clicked.connect(self.moveUp)
-        down = QPushButton("D")
-        down.clicked.connect(self.moveDown)
-        left = QPushButton("L")
-        left.clicked.connect(self.moveLeft)
-        right = QPushButton("R")
-        right.clicked.connect(self.moveRight)
+        self.setStyleSheet(f"max-width: 100px");
+
+        up = self.iconPushButton(self.ICON_UP, self.moveUp)
+        down = self.iconPushButton(self.ICON_DOWN, self.moveDown)
+        left = self.iconPushButton(self.ICON_LEFT, self.moveLeft)
+        right = self.iconPushButton(self.ICON_RIGHT, self.moveRight)
 
         if type == 'ocr':
             widthMinus = QPushButton("W -")
@@ -201,11 +204,21 @@ class OCRControl(QWidget):
 
         self.setLayout(layout)
 
+    def iconPushButton(self, base64, callback):
+        pixmap = QPixmap()
+        pixmap.loadFromData(QByteArray.fromBase64(base64))
+
+        button = QPushButton()
+        button.setIcon(QIcon(pixmap))
+        button.setStyleSheet(f"max-width: {pixmap.width()}px; max-height: {pixmap.height()}px")
+        button.clicked.connect(callback)
+        return button
+
     def moveUp(self):
-        self.ocr.move(self.type, 0, 1 * self.STEP)
+        self.ocr.move(self.type, 0, -1 * self.STEP)
 
     def moveDown(self):
-        self.ocr.move(self.type, 0, -1 * self.STEP)
+        self.ocr.move(self.type, 0, 1 * self.STEP)
 
     def moveLeft(self):
         self.ocr.move(self.type, -1 * self.STEP, 0)
@@ -251,7 +264,7 @@ class Dialog(QWidget):
         checkBoxOCR = QCheckBox(self)
         checkBoxOCR.setText('OCR')
         if self.settings.contains("ocr/visible"):
-            ocr_checked = self.settings.value("ocr/visible") 
+            ocr_checked = self.settings.value("ocr/visible") == 'true'
             checkBoxOCR.setChecked(ocr_checked)
             self.toggleOCR(ocr_checked)
         else:
@@ -261,7 +274,7 @@ class Dialog(QWidget):
         checkBoxButton = QCheckBox(self)
         checkBoxButton.setText('Button')
         if self.settings.contains("button/visible"):
-            button_checked = self.settings.value("button/visible") 
+            button_checked = self.settings.value("button/visible")  == 'true'
             checkBoxButton.setChecked(button_checked)
             self.toggleButton(button_checked)
         else:
