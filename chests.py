@@ -1,6 +1,8 @@
 import sys
 import time
 
+from datetime import datetime
+
 # pip install pyqt5
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
@@ -21,6 +23,15 @@ import numpy
 # pip install pyautogui
 import pyautogui
 
+# pip install reportlab
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
+from reportlab.lib import colors
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.validators import Auto
+from reportlab.graphics.shapes import Drawing, String
+from reportlab.graphics.charts.piecharts import Pie
+from reportlab.graphics.charts.legends import Legend
 
 SEP = ';'
 EOL = '\n'
@@ -41,7 +52,25 @@ class Chest:
 
     def valid(self):
         return len(self.name) > 0 and len(self.player) > 0 and len(self.source) > 0
-
+    
+    def points(self):
+        segs = self.source.split(' ')
+        for seg in segs:
+            try:
+                return int(seg)
+            except ValueError:
+                pass
+        return 0
+    
+    def is_crypt(self):
+        return 'Crypt' in self.source
+    
+    def is_citadel(self):
+        return 'Citadel' in self.source
+    
+    def is_runic(self):
+        return 'Raid Runic squad' in self.source
+    
 
 class ChestException(Exception):
     pass
@@ -117,7 +146,7 @@ class ChestCounter:
 
         return chests
     
-    def save(self, chests):
+    def _collect(self, chests):
         self.players = []
         self.sources = ['']
         self.player_chests = {}
@@ -139,8 +168,10 @@ class ChestCounter:
             if not real_player in self.player_chests:
                 self.player_chests[real_player] = []
             
-            self.player_chests[real_player].append(chest)            
+            self.player_chests[real_player].append(chest) 
 
+    def save(self, chests):
+        self._collect(chests)
         with open("chests.csv", "w", encoding='utf-8') as f:
             header = SEP.join(self.sources) + EOL
             f.write(header)
@@ -155,8 +186,113 @@ class ChestCounter:
                         if chest.source == source:
                             counter += 1
                     sources.append(str(counter))
+
                 line = SEP.join(sources) + EOL
                 f.write(line)    
+
+    def report(self, chests):
+        self._collect(chests)
+
+        # calculate total chest points for each player
+        player_points = {}
+        player_crypts = {}
+        player_citadels = {}
+        player_runics = {}
+
+        for player in self.players:
+            points = 0
+            crypts = 0
+            citadels = 0
+            runics = 0
+
+            for chest in self.player_chests[player]:
+                points += chest.points()
+                if chest.is_crypt():
+                    crypts += 1
+                elif chest.is_citadel():
+                    citadels += 1
+                elif chest.is_runic():
+                    runics += 1
+
+            player_points[player] = points
+            player_crypts[player] = crypts
+            player_citadels[player] = citadels
+            player_runics[player] = runics
+
+        sorted_points = sorted(player_points.items(), key=lambda x: x[1], reverse=True)
+
+        # prepare PDF document
+
+        date = datetime.today().strftime('%Y-%m-%d')
+        filename = "report_" +  date + '.pdf'
+        doc = SimpleDocTemplate(filename, pagesize=A4)
+        elements = []
+        elements.append(Paragraph("Chest Report " + date, ParagraphStyle(name='Normal',fontSize=18)))
+
+        # collect data 
+
+        top_players = []
+        top_points = []
+
+        data = [['Name', 'Points', 'Crypts', 'Citadels', 'Raid runics']]
+        for pts in sorted_points:
+            p = pts[0]
+            data.append([p, str(pts[1]), str(player_crypts[p]), str(player_citadels[p]), str(player_runics[p])])
+
+            if len(top_players) < 5:
+                top_players.append(pts[0])
+                top_points.append(pts[1])            
+
+        # top players
+        
+        pie = Pie()
+        pie.x = 10
+        pie.y = 10
+        #pie.width = 400
+        #pie.height = 400
+        pie.sideLabels = False
+        pie.data = top_points
+        pie.labels = top_players
+
+        legend = Legend()
+        legend.alignment = 'right'
+        legend.x = 200
+        legend.y = 100
+        legend.colorNamePairs = Auto(obj=pie)
+
+        drawing = Drawing(400, 200)
+        drawing.add(String(10, 140, 'Top players', fontSize=14))
+        drawing.add(pie)
+        drawing.add(legend)
+
+        elements.append(drawing)
+
+        # table with player total points
+
+        table = Table(data)
+        style = TableStyle([('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                        ('GRID', (0, 0), (-1, -1), 1, colors.black)])
+        table.setStyle(style)
+        elements.append(table)
+
+        doc.build(elements)
+
+def iconPushButton(base64, callback, width=0, height=0):
+    pixmap = QPixmap()
+    pixmap.loadFromData(QByteArray.fromBase64(base64))
+
+    button = QPushButton()
+    button.setIcon(QIcon(pixmap))
+    button.setStyleSheet(f"max-width: {pixmap.width()}px; max-height: {pixmap.height()}px")
+    if width > 0 and height > 0:
+        button.setIconSize(QSize(width, height))
+    button.clicked.connect(callback)
+    return button
 
 
 class OCRControl(QWidget):
@@ -175,10 +311,10 @@ class OCRControl(QWidget):
 
         self.setStyleSheet(f"max-width: 250px")
 
-        up = self.iconPushButton(self.ICON_UP, self.moveUp)
-        down = self.iconPushButton(self.ICON_DOWN, self.moveDown)
-        left = self.iconPushButton(self.ICON_LEFT, self.moveLeft)
-        right = self.iconPushButton(self.ICON_RIGHT, self.moveRight)
+        up = iconPushButton(self.ICON_UP, self.moveUp)
+        down = iconPushButton(self.ICON_DOWN, self.moveDown)
+        left = iconPushButton(self.ICON_LEFT, self.moveLeft)
+        right = iconPushButton(self.ICON_RIGHT, self.moveRight)
 
         self.widthSlider = QSlider()
         self.widthSlider.setStyleSheet(f"max-width: 120px")
@@ -247,16 +383,6 @@ class OCRControl(QWidget):
         self.heightSlider.setEnabled(enabled)
         self.widthSlider.setEnabled(enabled)
 
-    def iconPushButton(self, base64, callback):
-        pixmap = QPixmap()
-        pixmap.loadFromData(QByteArray.fromBase64(base64))
-
-        button = QPushButton()
-        button.setIcon(QIcon(pixmap))
-        button.setStyleSheet(f"max-width: {pixmap.width()}px; max-height: {pixmap.height()}px")
-        button.clicked.connect(callback)
-        return button
-
     def moveUp(self):
         self.ocr.move(self.type, 0, -1 * self.STEP)
 
@@ -278,6 +404,8 @@ class OCRControl(QWidget):
 
 class Dialog(QWidget):
 
+    ICON_REPORT = b'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'
+
     def __init__(self, ocr):
         super().__init__()
         self.ocr = ocr
@@ -290,6 +418,8 @@ class Dialog(QWidget):
 
         if self.settings.contains("ocr/box"):
             self.ocr.OCR_BOX = self.settings.value("ocr/box")
+        if self.settings.contains("button/box"):
+            self.ocr.BUTTON = self.settings.value("button/box")
 
         self.setWindowTitle("Chest counter")
 
@@ -316,7 +446,14 @@ class Dialog(QWidget):
         buttonStart.setStyleSheet("background-color: red; color: white; font-weight: bold;")
         buttonStart.clicked.connect(self.ocr.start)
 
+        buttonReport = iconPushButton(self.ICON_REPORT, self.ocr.on_report, 32, 32)
+
+        toolbar = QHBoxLayout()
+        toolbar.addItem(QSpacerItem(20, 20, QSizePolicy.Expanding, QSizePolicy.Minimum))
+        toolbar.addWidget(buttonReport)
+
         layout = QVBoxLayout()
+        layout.addLayout(toolbar)
         layout.addWidget(self.listWidget)
         layout.addWidget(self.ocrControl)
         layout.addWidget(checkBoxPanel)
@@ -377,6 +514,9 @@ class OCRWindow(QMainWindow):
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.setWindowFlags(Qt.FramelessWindowHint)
+
+    def on_report(self):
+        self.counter.report(self.total_chests)
 
     def move(self, type, x, y):
         if type == 'ocr':
