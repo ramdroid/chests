@@ -168,41 +168,84 @@ class OCRControl(QWidget):
     ICON_UP = b"PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgZmlsbC1ydWxlPSJldmVub2RkIiBjbGlwLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0xMiAwYzYuNjIzIDAgMTIgNS4zNzcgMTIgMTJzLTUuMzc3IDEyLTEyIDEyLTEyLTUuMzc3LTEyLTEyIDUuMzc3LTEyIDEyLTEyem0wIDFjNi4wNzEgMCAxMSA0LjkyOSAxMSAxMXMtNC45MjkgMTEtMTEgMTEtMTEtNC45MjktMTEtMTEgNC45MjktMTEgMTEtMTF6bTUuMjQ3IDE1bC01LjI0Ny02LjQ0LTUuMjYzIDYuNDQtLjczNy0uNjc4IDYtNy4zMjIgNiA3LjMzNS0uNzUzLjY2NXoiLz48L3N2Zz4="
     ICON_DOWN = b"PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgZmlsbC1ydWxlPSJldmVub2RkIiBjbGlwLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0xMiAwYzYuNjIzIDAgMTIgNS4zNzcgMTIgMTJzLTUuMzc3IDEyLTEyIDEyLTEyLTUuMzc3LTEyLTEyIDUuMzc3LTEyIDEyLTEyem0wIDFjNi4wNzEgMCAxMSA0LjkyOSAxMSAxMXMtNC45MjkgMTEtMTEgMTEtMTEtNC45MjktMTEtMTEgNC45MjktMTEgMTEtMTF6bTUuMjQ3IDhsLTUuMjQ3IDYuNDQtNS4yNjMtNi40NC0uNzM3LjY3OCA2IDcuMzIyIDYtNy4zMzUtLjc1My0uNjY1eiIvPjwvc3ZnPg=="
 
-    def __init__(self, ocr, type):
+    def __init__(self, ocr):
         super().__init__()
         self.ocr = ocr
-        self.type = type
+        self.type = 'ocr'
 
-        self.setStyleSheet(f"max-width: 100px");
+        self.setStyleSheet(f"max-width: 250px")
 
         up = self.iconPushButton(self.ICON_UP, self.moveUp)
         down = self.iconPushButton(self.ICON_DOWN, self.moveDown)
         left = self.iconPushButton(self.ICON_LEFT, self.moveLeft)
         right = self.iconPushButton(self.ICON_RIGHT, self.moveRight)
 
-        if type == 'ocr':
-            widthMinus = QPushButton("W -")
-            widthMinus.clicked.connect(self.moveWidthMinus)
-            widthPlus = QPushButton("W +")
-            widthPlus.clicked.connect(self.moveWidthPlus)
-            heightMinus = QPushButton("H -")
-            heightMinus.clicked.connect(self.moveHeightMinus)
-            heightPlus = QPushButton("H +")
-            heightPlus.clicked.connect(self.moveHeightPlus)
+        self.widthSlider = QSlider()
+        self.widthSlider.setStyleSheet(f"max-width: 120px")
+        self.widthSlider.setOrientation(Qt.Horizontal)
+        self.widthSlider.setRange(1, int(self.ocr.max_width / 2))
+        self.widthSlider.setSliderPosition(self.ocr.OCR_BOX[2])
+        self.widthSlider.valueChanged.connect(self.widthChanged)
 
-        layout = QGridLayout()
-        layout.addWidget(up, 0, 1)
-        layout.addWidget(left, 1, 0)
-        layout.addWidget(right, 1, 2)
-        layout.addWidget(down, 2, 1)
+        self.heightSlider = QSlider()
+        self.heightSlider.setStyleSheet(f"max-width: 20px; max-height: 100px")
+        self.heightSlider.setOrientation(Qt.Vertical)
+        self.heightSlider.setInvertedAppearance(True)
+        self.heightSlider.setRange(1, int(self.ocr.max_height / 2))
+        self.heightSlider.setSliderPosition(self.ocr.OCR_BOX[3])
+        self.heightSlider.valueChanged.connect(self.heightChanged)
 
-        if type == 'ocr':
-            layout.addWidget(widthPlus, 3, 0)
-            layout.addWidget(widthMinus, 4, 0)
-            layout.addWidget(heightPlus, 3, 2)
-            layout.addWidget(heightMinus, 4, 2)
+        joystickGrid = QGridLayout()
+        joystickGrid.addWidget(up, 0, 1)
+        joystickGrid.addWidget(left, 1, 0)
+        joystickGrid.addWidget(right, 1, 2)
+        joystickGrid.addWidget(down, 2, 1)
 
-        self.setLayout(layout)
+        joystick = QWidget()
+        joystick.setStyleSheet(f"max-width: 150px; max-height: 100px")
+        joystick.setLayout(joystickGrid)
+
+        radioBox = QRadioButton("Box")
+        radioBox.setChecked(True)
+        radioBox.toggled.connect(self.radioBoxClicked)
+        radioButton = QRadioButton("Button")
+        radioButton.toggled.connect(self.radioButtonClicked)
+
+        radioLayout = QVBoxLayout()
+        radioLayout.addWidget(radioBox)
+        radioLayout.addWidget(radioButton)
+
+        radios = QWidget()
+        radios.setLayout(radioLayout)
+
+        group = QButtonGroup()
+        group.addButton(radioBox)
+        group.addButton(radioButton)
+
+        layoutH = QHBoxLayout()
+        layoutH.addWidget(self.heightSlider)
+        layoutH.addWidget(joystick)
+        layoutH.addWidget(radios)
+
+        layoutV = QVBoxLayout()
+        layoutV.addWidget(self.widthSlider)
+        layoutV.addLayout(layoutH)
+
+        self.setLayout(layoutV)
+
+    def radioBoxClicked(self, enabled):
+        if enabled:
+            self.type = 'ocr'
+            self.enableSliders(True)
+    
+    def radioButtonClicked(self, enabled):
+        if enabled:
+            self.type = 'button'
+            self.enableSliders(False)
+
+    def enableSliders(self, enabled):
+        self.heightSlider.setEnabled(enabled)
+        self.widthSlider.setEnabled(enabled)
 
     def iconPushButton(self, base64, callback):
         pixmap = QPixmap()
@@ -226,17 +269,11 @@ class OCRControl(QWidget):
     def moveRight(self):
         self.ocr.move(self.type, 1 * self.STEP, 0)
 
-    def moveWidthMinus(self):
-        self.ocr.moveWidth(self.type, -1 * self.STEP)
+    def widthChanged(self, value):
+        self.ocr.moveWidth(self.type, value)
 
-    def moveWidthPlus(self):
-        self.ocr.moveWidth(self.type, 1 * self.STEP)
-
-    def moveHeightMinus(self):
-        self.ocr.moveHeight(self.type, -1 * self.STEP)
-
-    def moveHeightPlus(self):
-        self.ocr.moveHeight(self.type, 1 * self.STEP)
+    def heightChanged(self, value):
+        self.ocr.moveHeight(self.type, value)
 
 
 class Dialog(QWidget):
@@ -258,32 +295,20 @@ class Dialog(QWidget):
 
         self.listWidget = QListWidget()
 
-        self.ocrControl = OCRControl(self.ocr, 'ocr')
-        self.buttonControl = OCRControl(self.ocr, 'button')
+        self.ocrControl = OCRControl(self.ocr)
 
-        checkBoxOCR = QCheckBox(self)
-        checkBoxOCR.setText('OCR')
+        checkBoCalibrate = QCheckBox(self)
+        checkBoCalibrate.setText('Calibrate')
         if self.settings.contains("ocr/visible"):
             ocr_checked = self.settings.value("ocr/visible") == 'true'
-            checkBoxOCR.setChecked(ocr_checked)
+            checkBoCalibrate.setChecked(ocr_checked)
             self.toggleOCR(ocr_checked)
         else:
             self.toggleOCR(False)
-        checkBoxOCR.stateChanged.connect(self.toggleOCR)
+        checkBoCalibrate.stateChanged.connect(self.toggleOCR)
         
-        checkBoxButton = QCheckBox(self)
-        checkBoxButton.setText('Button')
-        if self.settings.contains("button/visible"):
-            button_checked = self.settings.value("button/visible")  == 'true'
-            checkBoxButton.setChecked(button_checked)
-            self.toggleButton(button_checked)
-        else:
-            self.toggleButton(False)
-        checkBoxButton.stateChanged.connect(self.toggleButton)
-
         panelLayout = QHBoxLayout()
-        panelLayout.addWidget(checkBoxOCR)
-        panelLayout.addWidget(checkBoxButton)
+        panelLayout.addWidget(checkBoCalibrate)
         checkBoxPanel = QWidget()
         checkBoxPanel.setLayout(panelLayout)
         
@@ -294,19 +319,12 @@ class Dialog(QWidget):
         layout = QVBoxLayout()
         layout.addWidget(self.listWidget)
         layout.addWidget(self.ocrControl)
-        layout.addWidget(self.buttonControl)
         layout.addWidget(checkBoxPanel)
         layout.addWidget(buttonStart)
         self.setLayout(layout)
 
     def toggleOCR(self, checked):
         self.ocrControl.setVisible(checked)
-        self.buttonControl.setVisible(False)
-        self.ocr.toggleOCR(checked)
-
-    def toggleButton(self, checked):
-        self.ocrControl.setVisible(False)
-        self.buttonControl.setVisible(checked)
         self.ocr.toggleOCR(checked)
 
     def log_entry(self, entry):
@@ -339,6 +357,13 @@ class OCRWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
+        for m in get_monitors():
+            print(str(m))
+            if m.is_primary:
+                self.setGeometry(m.x, m.y, m.width, m.height)
+                self.max_width = m.width
+                self.max_height = m.height
+
         self.ocr = easyocr.Reader(['en', 'de'])
         self.ocr_visible = False
         self.button_visible = False
@@ -348,11 +373,6 @@ class OCRWindow(QMainWindow):
 
         self.counter = ChestCounter(self.dialog.log_entry)
         self.total_chests = self.counter.load()
-
-        for m in get_monitors():
-            print(str(m))
-            if m.is_primary:
-                self.setGeometry(m.x, m.y, m.width, m.height)
 
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setAttribute(Qt.WA_TransparentForMouseEvents)
@@ -366,18 +386,14 @@ class OCRWindow(QMainWindow):
         self.update()
 
     def moveWidth(self, type, width):
-        self.OCR_BOX = (self.OCR_BOX[0], self.OCR_BOX[1], self.OCR_BOX[2] + width, self.OCR_BOX[3])
+        self.OCR_BOX = (self.OCR_BOX[0], self.OCR_BOX[1], width, self.OCR_BOX[3])
         self.update()
 
     def moveHeight(self, type, height):
-        self.OCR_BOX = (self.OCR_BOX[0], self.OCR_BOX[1], self.OCR_BOX[2], self.OCR_BOX[3] + height)
+        self.OCR_BOX = (self.OCR_BOX[0], self.OCR_BOX[1], self.OCR_BOX[2], height)
         self.update()
 
     def toggleOCR(self, checked):
-        self.ocr_visible = checked
-        self.update()
-
-    def toggleButton(self, checked):
         self.ocr_visible = checked
         self.update()
 
