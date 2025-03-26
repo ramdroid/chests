@@ -294,6 +294,11 @@ def iconPushButton(base64, callback, width=0, height=0):
     button.clicked.connect(callback)
     return button
 
+def button_style(color):
+    style = ':enabled { background-color: ' + color + '; color: white; font-weight: bold }'
+    style += ':disabled { background-color: gray; color: black; }'
+    return style
+
 
 class OCRControl(QWidget):
 
@@ -421,12 +426,19 @@ class Dialog(QWidget):
         if self.settings.contains("button/box"):
             self.ocr.BUTTON = self.settings.value("button/box")
 
+        if self.settings.contains("ocr/calibrated"):
+            self.ocr.ocr_calibrated = self.settings.value("ocr/calibrated") == 'true'
+
         self.setWindowTitle("Chest counter")
 
         self.listWidget = QListWidget()
 
         self.ocrControl = OCRControl(self.ocr)
 
+        self.buttonTest = QPushButton('Test', self)
+        self.buttonTest.setStyleSheet(button_style('blue'))
+        self.buttonTest.clicked.connect(self.ocr.test)
+        
         checkBoCalibrate = QCheckBox(self)
         checkBoCalibrate.setText('Calibrate')
         if self.settings.contains("ocr/visible"):
@@ -436,15 +448,18 @@ class Dialog(QWidget):
         else:
             self.toggleOCR(False)
         checkBoCalibrate.stateChanged.connect(self.toggleOCR)
-        
+
         panelLayout = QHBoxLayout()
         panelLayout.addWidget(checkBoCalibrate)
-        checkBoxPanel = QWidget()
-        checkBoxPanel.setLayout(panelLayout)
+        panelLayout.addItem(QSpacerItem(20, 20, QSizePolicy.Expanding, QSizePolicy.Minimum))
+        panelLayout.addWidget(self.buttonTest)
         
-        buttonStart = QPushButton('Start', self)
-        buttonStart.setStyleSheet("background-color: red; color: white; font-weight: bold;")
-        buttonStart.clicked.connect(self.ocr.start)
+        calibratePanel = QWidget()
+        calibratePanel.setLayout(panelLayout)
+        
+        self.buttonStart = QPushButton('Start', self)
+        self.buttonStart.setStyleSheet(button_style('red'))
+        self.buttonStart.clicked.connect(self.ocr.start)
 
         buttonReport = iconPushButton(self.ICON_REPORT, self.ocr.on_report, 32, 32)
 
@@ -456,11 +471,17 @@ class Dialog(QWidget):
         layout.addLayout(toolbar)
         layout.addWidget(self.listWidget)
         layout.addWidget(self.ocrControl)
-        layout.addWidget(checkBoxPanel)
-        layout.addWidget(buttonStart)
+        layout.addWidget(calibratePanel)
+        layout.addWidget(self.buttonStart)
         self.setLayout(layout)
 
+        self.on_calibrated()
+
+    def on_calibrated(self):
+        self.buttonStart.setEnabled(self.ocr.ocr_calibrated)
+
     def toggleOCR(self, checked):
+        self.buttonTest.setVisible(checked)
         self.ocrControl.setVisible(checked)
         self.ocr.toggleOCR(checked)
 
@@ -477,6 +498,7 @@ class Dialog(QWidget):
     def save_settings(self):
         self.settings.setValue("geometry", self.saveGeometry())
         self.settings.beginGroup("ocr")
+        self.settings.setValue("calibrated", self.ocr.ocr_calibrated)
         self.settings.setValue("visible", self.ocr.ocr_visible)
         self.settings.setValue("box", self.ocr.OCR_BOX)
         self.settings.endGroup()
@@ -504,6 +526,7 @@ class OCRWindow(QMainWindow):
         self.ocr = easyocr.Reader(['en', 'de'])
         self.ocr_visible = False
         self.button_visible = False
+        self.ocr_calibrated = False
 
         self.dialog = Dialog(self)
         self.dialog.show()
@@ -524,14 +547,17 @@ class OCRWindow(QMainWindow):
         else:
             self.BUTTON = (self.BUTTON[0] + x, self.BUTTON[1] + y, self.BUTTON[2], self.BUTTON[3])
         self.update()
+        self.update_calibrated(False)
 
     def moveWidth(self, type, width):
         self.OCR_BOX = (self.OCR_BOX[0], self.OCR_BOX[1], width, self.OCR_BOX[3])
         self.update()
+        self.update_calibrated(False)
 
     def moveHeight(self, type, height):
         self.OCR_BOX = (self.OCR_BOX[0], self.OCR_BOX[1], self.OCR_BOX[2], height)
         self.update()
+        self.update_calibrated(False)
 
     def toggleOCR(self, checked):
         self.ocr_visible = checked
@@ -545,6 +571,19 @@ class OCRWindow(QMainWindow):
             qp.drawRect(self.OCR_BOX[0], self.OCR_BOX[1], self.OCR_BOX[2], self.OCR_BOX[3])
             qp.drawRect(self.BUTTON[0], self.BUTTON[1], self.BUTTON[2], self.BUTTON[3])
         qp.end()
+
+    def test(self):
+        chests = self.grab()
+        result = len(chests) == 4
+        self.dialog.log_entry(f'Calibration {"OK" if result else "FAILED"}: found {len(chests)} of 4 chests')
+        self.dialog.activateWindow()
+        self.update_calibrated(result)
+
+    def update_calibrated(self, value):
+        if not value and self.ocr_calibrated:
+            self.dialog.log_entry(f'Calibration reset')
+        self.ocr_calibrated = value
+        self.dialog.on_calibrated()
 
     def start(self):
         while (True):    
