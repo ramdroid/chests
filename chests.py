@@ -28,10 +28,8 @@ from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
 from reportlab.lib import colors
 from reportlab.lib.styles import ParagraphStyle
-from reportlab.lib.validators import Auto
 from reportlab.graphics.shapes import Drawing, String
 from reportlab.graphics.charts.piecharts import Pie
-from reportlab.graphics.charts.legends import Legend
 
 SEP = ';'
 EOL = '\n'
@@ -57,7 +55,12 @@ class Chest:
         segs = self.source.split(' ')
         for seg in segs:
             try:
-                return int(seg)
+                idx = seg.find('-')
+                if idx > 0:
+                    # runic/ancient levels
+                    return int(seg[idx+1:])
+                else:
+                    return int(seg)
             except ValueError:
                 pass
         return 0
@@ -269,7 +272,7 @@ class ChestCounter:
         elements = []
         elements.append(Paragraph("Chest Report " + date, ParagraphStyle(name='Normal',fontSize=18)))
 
-        # collect data 
+        # collect table data 
 
         top_players = []
         top_points = []
@@ -290,30 +293,41 @@ class ChestCounter:
 
             if len(top_players) < 5:
                 top_players.append(pts[0])
-                top_points.append(pts[1])            
+                top_points.append(pts[1])
+
+        # pie colors
+        pie_colors = [colors.red, colors.blue, colors.green, colors.yellow, colors.gray]
 
         # top players
         
         pie = Pie()
-        pie.x = 10
-        pie.y = 10
-        #pie.width = 400
-        #pie.height = 400
-        pie.sideLabels = False
+        pie.x = 200
+        pie.y = 40
+        pie.sideLabels = True
         pie.data = top_points
         pie.labels = top_players
-
-        legend = Legend()
-        legend.alignment = 'right'
-        legend.x = 200
-        legend.y = 100
-        legend.colorNamePairs = Auto(obj=pie)
+        for i in range(len(pie_colors)):
+            pie.slices[i].fillColor = pie_colors[i]
 
         drawing = Drawing(400, 200)
-        drawing.add(String(10, 140, 'Top players', fontSize=14))
+        drawing.add(String(0, 140, 'Top players', fontSize=14))
         drawing.add(pie)
-        drawing.add(legend)
+        elements.append(drawing)
 
+        # vaults
+
+        pie = Pie()
+        pie.x = 200
+        pie.y = 50
+        pie.sideLabels = True
+        pie.data = list(all_vaults.values())
+        pie.labels = list(all_vaults.keys())
+        for i in range(len(pie_colors)):
+            pie.slices[i].fillColor = pie_colors[i]
+
+        drawing = Drawing(400, 200)
+        drawing.add(String(0, 140, 'Vaults', fontSize=14))
+        drawing.add(pie)
         elements.append(drawing)
 
         # table with player total points
