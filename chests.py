@@ -67,6 +67,8 @@ class Chest:
         for seg in segs:
             if '-' in seg:
                 return seg
+            elif '45' in seg:
+                return seg
         return ''
     
     def is_crypt(self):
@@ -80,6 +82,12 @@ class Chest:
     
     def is_vault(self):
         return 'Vault' in self.source
+    
+    def is_ancient(self):
+        return 'Rise of the Ancients event' in self.source
+    
+    def is_heroic(self):
+        return 'heroic Monster' in self.source
     
 
 class ChestException(Exception):
@@ -209,6 +217,8 @@ class ChestCounter:
         player_citadels = {}
         player_runics = {}
         player_vaults = {}
+        player_ancients = {}
+        player_heroics = {}
 
         all_vaults = {}
 
@@ -218,6 +228,8 @@ class ChestCounter:
             citadels = 0
             runics = 0
             vaults = 0
+            ancients = 0
+            heroics = 0
 
             for chest in self.player_chests[player]:
                 points += chest.points()
@@ -233,12 +245,19 @@ class ChestCounter:
                     if not level in all_vaults:
                         all_vaults[level] = 0
                     all_vaults[level] += chest.count
+                elif chest.is_ancient():
+                    ancients += chest.count
+                elif chest.is_heroic():
+                    points += chest.points()
+                    heroics += chest.count
 
             player_points[player] = points
             player_crypts[player] = crypts
             player_citadels[player] = citadels
             player_runics[player] = runics
             player_vaults[player] = vaults
+            player_ancients[player] = ancients
+            player_heroics[player] = heroics
 
         sorted_points = sorted(player_points.items(), key=lambda x: x[1], reverse=True)
 
@@ -255,10 +274,19 @@ class ChestCounter:
         top_players = []
         top_points = []
 
-        data = [['Name', 'Points', 'Crypts', 'Citadels', 'Raid runics', 'Vaults']]
+        data = [['Name', 'Points', 'Crypts', 'Citadels', 'Raid runics', 'Vaults', 'Ancient chests', 'Heroics']]
         for pts in sorted_points:
             p = pts[0]
-            data.append([p, str(pts[1]), str(player_crypts[p]), str(player_citadels[p]), str(player_runics[p]), str(player_vaults[p])])
+            data.append([
+                p, 
+                str(pts[1]), 
+                str(player_crypts[p]), 
+                str(player_citadels[p]), 
+                str(player_runics[p]), 
+                str(player_vaults[p]),
+                str(player_ancients[p]),
+                str(player_heroics[p])
+            ])
 
             if len(top_players) < 5:
                 top_players.append(pts[0])
