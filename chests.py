@@ -1,6 +1,10 @@
 import sys
 import time
 
+import logging
+logger = logging.getLogger(__name__)
+logging.basicConfig(filename='chests.log', encoding='utf-8', level=logging.DEBUG)
+
 from datetime import datetime
 
 # pip install pyqt5
@@ -111,6 +115,8 @@ class ChestCounter:
             if len(line) == 0:
                 continue
 
+            logger.debug(line)
+
             if 'PRBS' in line:
                 pass # what's going on with this one?
 
@@ -136,6 +142,7 @@ class ChestCounter:
             if chest.valid():
                 chests.append(chest)
                 self.log_callback(str(chest))
+                logger.info(f' ---> {str(chest)}')
                 chest = Chest()
 
         return chests
@@ -316,19 +323,20 @@ class ChestCounter:
 
         # vaults
 
-        pie = Pie()
-        pie.x = 200
-        pie.y = 50
-        pie.sideLabels = True
-        pie.data = list(all_vaults.values())
-        pie.labels = list(all_vaults.keys())
-        for i in range(len(pie_colors)):
-            pie.slices[i].fillColor = pie_colors[i]
+        if len(all_vaults) > 0:
+            pie = Pie()
+            pie.x = 200
+            pie.y = 50
+            pie.sideLabels = True
+            pie.data = list(all_vaults.values())
+            pie.labels = list(all_vaults.keys())
+            for i in range(len(pie_colors)):
+                pie.slices[i].fillColor = pie_colors[i]
 
-        drawing = Drawing(400, 200)
-        drawing.add(String(0, 140, 'Vaults', fontSize=14))
-        drawing.add(pie)
-        elements.append(drawing)
+            drawing = Drawing(400, 200)
+            drawing.add(String(0, 140, 'Vaults', fontSize=14))
+            drawing.add(pie)
+            elements.append(drawing)
 
         # table with player total points
 
